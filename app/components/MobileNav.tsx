@@ -38,6 +38,7 @@ import { Avatar } from "./Avatar";
 import { EventsList } from "./EventsList";
 import { LinkButton } from "./elements/Button";
 import { isOwnToggle } from "./elements/Popover";
+import { useConsentDialogOpen } from "./fuse/Fuse";
 import { Image } from "./Image";
 import { LazyChatSidebar } from "./layout/LazyChatSidebar";
 import { LogInButtonContainer } from "./layout/LogInButtonContainer";
@@ -65,7 +66,8 @@ const PANEL_TYPES = ["menu", "friends", "tourneys", "chat", "you"] as const;
  * tab bar stays usable underneath. The state here only mirrors them.
  *
  * The bar itself is a manual popover shown on hydration so it lives in the top
- * layer; before that it is a plain fixed bar.
+ * layer; before that it is a plain fixed bar. It steps back out while the ads'
+ * consent dialog is up: that one is drawn outside the top layer.
  */
 export function MobileNav({ sidebarData }: { sidebarData: SidebarData }) {
 	const [activePanel, setActivePanel] = React.useState<PanelType | null>(null);
@@ -74,6 +76,7 @@ export function MobileNav({ sidebarData }: { sidebarData: SidebarData }) {
 	const user = useUser();
 	const { showUnseenDot } = useNotifications();
 	const chatContext = useChatContext();
+	const consentDialogOpen = useConsentDialogOpen();
 	const uid = React.useId();
 	const panelIds = Object.fromEntries(
 		PANEL_TYPES.map((panel) => [panel, panelDomId(uid, panel)]),
@@ -95,11 +98,17 @@ export function MobileNav({ sidebarData }: { sidebarData: SidebarData }) {
 				chatContextRef.current?.setChatOpen(true);
 			}
 		}
-
-		const root = rootRef.current;
-		if (!root || root.matches(":popover-open")) return;
-		root.showPopover();
 	}, [uid]);
+
+	React.useEffect(() => {
+		const root = rootRef.current;
+		if (!root) return;
+		if (!consentDialogOpen && !root.matches(":popover-open")) {
+			root.showPopover();
+		} else if (consentDialogOpen && root.matches(":popover-open")) {
+			root.hidePopover();
+		}
+	}, [consentDialogOpen]);
 
 	const hasFriendInSendouQ =
 		sidebarData?.friends.some((f) => f.subtitle === SENDOUQ_ACTIVITY_LABEL) ??
